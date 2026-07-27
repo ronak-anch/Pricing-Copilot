@@ -35,3 +35,26 @@ class ExecutiveSummaryPrompt:
     def combined(self) -> str:
         """Single flattened string, for tools that take one prompt blob."""
         return f"{self.system_prompt}\n\n{self.user_prompt}"
+
+
+@dataclass(frozen=True)
+class ExecutiveSummary:
+    """The executive summary an LLM generated from an `ExecutiveSummaryPrompt`.
+
+    Attributes:
+        text: The generated summary text.
+        model: The model ID that produced it.
+        stop_reason: Why the model stopped generating (e.g. "end_turn").
+    """
+
+    text: str
+    model: str
+    stop_reason: str
+
+
+class ExecutiveSummaryRefusedError(RuntimeError):
+    """Raised when the model declines to generate a summary for safety reasons."""
+
+    def __init__(self, model: str) -> None:
+        super().__init__(f"Model '{model}' declined to generate an executive summary.")
+        self.model = model
