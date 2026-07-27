@@ -24,6 +24,7 @@ import streamlit as st
 
 from domain.kpi_models import KPIResult
 from kpis import calculate_kpis
+from streamlit_widgets import column_select
 
 __all__ = ["build_kpi_dashboard_figure", "render_kpi_dashboard", "main"]
 
@@ -258,24 +259,35 @@ def main() -> None:
     st.title("Pricing KPI dashboard")
     st.caption("Upload a CSV to compute premium, exposure, loss ratio, frequency, severity, average premium, and burning cost.")
 
+    uploaded_file = st.file_uploader("CSV file", type=["csv"])
+
+    df: pd.DataFrame | None = None
+    parse_error: str | None = None
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+        except (pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
+            parse_error = f"Could not read the uploaded file as CSV: {exc}"
+
+    columns = list(df.columns) if df is not None else []
+
     with st.sidebar:
         st.header("Settings")
-        premium_column = st.text_input("Premium column", value="premium")
-        exposure_column = st.text_input("Exposure column", value="exposure")
-        loss_column = st.text_input("Loss column", value="loss")
+        premium_column = column_select("Premium column", columns, default="premium")
+        exposure_column = column_select("Exposure column", columns, default="exposure")
+        loss_column = column_select("Loss column", columns, default="loss")
         use_claim_count_column = st.checkbox("Use a claim-count column", value=False)
-        claim_count_column = st.text_input("Claim-count column", value="claim_count") if use_claim_count_column else None
-        currency_symbol = st.text_input("Currency symbol", value="$")
+        claim_count_column = (
+            column_select("Claim-count column", columns, default="claim_count") if use_claim_count_column else None
+        )
+        currency_symbol = st.selectbox("Currency symbol", options=["$", "€", "£", "¥", "₹"], index=0)
 
-    uploaded_file = st.file_uploader("CSV file", type=["csv"])
-    if uploaded_file is None:
-        st.info("Waiting for a CSV file.")
+    if parse_error is not None:
+        st.error(parse_error)
         return
 
-    try:
-        df = pd.read_csv(uploaded_file)
-    except (pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
-        st.error(f"Could not read the uploaded file as CSV: {exc}")
+    if df is None:
+        st.info("Waiting for a CSV file.")
         return
 
     if df.empty:

@@ -22,6 +22,7 @@ import streamlit as st
 
 from application.validation_service import ValidationService
 from domain.models import Severity, ValidationResult
+from streamlit_widgets import column_select
 
 __all__ = [
     "ValidationResult",
@@ -104,22 +105,31 @@ def main() -> None:
     st.title("Pricing data validation")
     st.caption("Upload a CSV to check for missing values, duplicate rows, negative premium, and invalid exposure.")
 
+    uploaded_file = st.file_uploader("CSV file", type=["csv"])
+
+    df: pd.DataFrame | None = None
+    parse_error: str | None = None
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+        except (pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
+            parse_error = f"Could not read the uploaded file as CSV: {exc}"
+
+    columns = list(df.columns) if df is not None else []
+
     with st.sidebar:
         st.header("Settings")
-        premium_column = st.text_input("Premium column", value="premium")
-        exposure_column = st.text_input("Exposure column", value="exposure")
+        premium_column = column_select("Premium column", columns, default="premium")
+        exposure_column = column_select("Exposure column", columns, default="exposure")
         use_max_exposure = st.checkbox("Cap maximum valid exposure", value=False)
         max_exposure = st.number_input("Maximum exposure", min_value=0.0, value=365.0) if use_max_exposure else None
 
-    uploaded_file = st.file_uploader("CSV file", type=["csv"])
-    if uploaded_file is None:
-        st.info("Waiting for a CSV file.")
+    if parse_error is not None:
+        st.error(parse_error)
         return
 
-    try:
-        df = pd.read_csv(uploaded_file)
-    except (pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
-        st.error(f"Could not read the uploaded file as CSV: {exc}")
+    if df is None:
+        st.info("Waiting for a CSV file.")
         return
 
     if df.empty:
